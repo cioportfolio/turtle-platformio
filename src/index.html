@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"> 
+    <title>PicoW Turtle</title>
+    <style>
+    html {
+        font-family: Helvetica;
+        display: inline-block;
+        margin: 0px auto;
+        text-align: center;
+    }
+
+    .button {
+        background-color: #4CAF50;
+        border: none;
+        color: white;
+        padding: 2px 2px;
+        text-decoration: none;
+        font-size: 16px;
+        margin: 2px;
+        cursor: pointer;
+    }
+
+    .slider {
+        writing-mode: vertical-lr;
+
+        vertical-align: middle;
+    }
+</style>
+
+</head>
+<body>
+    <h1>PicoW Turtle</h1>
+    <div id="controls">
+        <div id="ap"></div>
+    </div>
+    <div>
+        <h2>Tests</h2>
+        <button class="button" onclick="commandAPI('move','1.0')">MOVE 1.0</button>
+        <button class="button" onclick="commandAPI('turn','1.0')">TURN 1.0</button>
+        <button class="button" onclick="penAPI('#penup')">PEN UP</button>
+        <button class="button" onclick="penAPI('#pendown')">PEN DOWN</button>
+    </div>
+    <div>
+        <h2>Settings</h2>
+        Pen Up Position
+        <input type="range" min="-75" max="75" step="5" value="-45" class="slider" id="penup">
+        Pen Down Position
+        <input type="range" min="-75" max="75" step="5" value="45" class="slider" id="pendown">
+    </div>
+    <script>
+        function commandAPI(cmd, val) {
+            fetch('/command?'+cmd+'=' + val).then(r => r.text()).then(t => {
+                console.log(t);
+                return;
+            });
+        }
+
+        function setAPI() {
+            let s = document.querySelector("#speed").value;
+            let b = document.querySelector("#brightness").value;
+            fetch('/set?s=' + s + '&b='+b).then(r => r.text()).then(t => {
+                console.log(t);
+                return;
+            });
+        }
+
+        function penAPI(dir) {
+            let val=document.querySelector(dir).value;
+            commandAPI('pen', val);
+        }
+
+        function connectAPI(SSID) {
+            let PWD = document.querySelector('#pwd').value;
+            fetch('/connect?SSID='+SSID+'&PWD='+PWD).then(r=>{
+                document.querySelector('#controls').innerHTML=`<h1>Changing Wifi connect to "${SSID}"</h1>`
+            })
+        }
+
+        function APList() {
+            fetch('/APs').then(r=>r.json()).then(j=>{
+                if (j.length==0) {
+                    return
+                }
+                let html='<div><h2>Available Wifi</h2>'
+                html+=j.filter(s=>s!='').map(s=>`<p><button class="button" onclick="connectAPI('${s}');">Connect to ${s}</button><p>`).join('')
+                html+=`<label for='pwd'>WiFi key:</label><input type='text' id='pwd' size="30" maxlength="30">`
+                html+='</div>'
+                document.querySelector('#ap').innerHTML=html
+            })
+        }
+        APList()
+    </script>
+</body>
+</html>
