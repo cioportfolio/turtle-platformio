@@ -7,8 +7,6 @@
 #define DEF_PWD "turtlepassword"
 
 // Motor pins
-#define SM_L 0
-#define SM_R 1
 #define ENCODER_PIN_LA 10
 #define ENCODER_PIN_RA 12
 #define POWER_PIN_LA 4

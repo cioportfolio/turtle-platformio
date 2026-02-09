@@ -3,8 +3,8 @@
 
 #define MID_DUTY 750
 #define DUTY_RANGE 200
-#define CLOCK_DIV 250
-#define WRAP 10000
+#define SERVO_CLOCK_DIV 250
+#define SERVO_WRAP 10000
 #define MID_ANGLE 0
 #define ANGLE_RANGE 90
 
@@ -27,17 +27,23 @@ struct servo {
     void PWMInit() {
         gpio_set_function(pin, GPIO_FUNC_PWM);
         pwm_config config = pwm_get_default_config();
-        pwm_config_set_clkdiv(&config, CLOCK_DIV);
-        pwm_config_set_wrap(&config, WRAP);
+        pwm_config_set_clkdiv(&config, SERVO_CLOCK_DIV);
+        pwm_config_set_wrap(&config, SERVO_WRAP);
         pwm_set_gpio_level(pin, MID_DUTY);
         pwm_init(slice, &config, true);
     }
 
     void init() {
+        Serial.print(" Servo slice:");
+        Serial.print(slice);
+        Serial.print(" Channel:");
+        Serial.println(channel);
         PWMInit();
     }
 
     void moveTo(int a) {
+        Serial.print("Servo move ");
+        Serial.println(a);
         if (a<MID_ANGLE-ANGLE_RANGE) {
             a=MID_ANGLE-ANGLE_RANGE;
         }

@@ -58,10 +58,13 @@ bool trySavedWifi() {
   if (!f) return false;
   char ssid[SSID_LENGTH+1], pwd[SSID_LENGTH+1];
   while (readNet(f,ssid,pwd)) {
+    Serial.print("Saved Wifi: ");
+    Serial.println(ssid);
     wm.addAP(ssid, pwd);
   }
   f.close();
   uint8_t ret=wm.run();
+  Serial.println("Trying saved Wifis");
   return (ret == WL_CONNECTED);
 }
 
@@ -136,12 +139,18 @@ void handleCommand() {
         String command=server.argName(a);
         if (command=="move") {
             double rev=server.arg(a).toDouble();
+            Serial.print("Web Move ");
+            Serial.println(rev);
             motors.forwardBy(rev);
         } else if (command=="turn") {
             double rev=server.arg(a).toDouble();
+            Serial.print("Web Turn ");
+            Serial.println(rev);
             motors.panBy(rev);
         } else if (command=="pen") {
             int deg = server.arg(a).toInt();
+            Serial.print("Web Pen ");
+            Serial.println(deg);
             serv.moveTo(deg);
         }
     }
@@ -166,6 +175,7 @@ void handleConnect() {
   f.close();
   server.send(200, "text/plain", "OK");
   delay(250);
+  Serial.print("About to shutdown ap and connect to wifi");
   WiFi.disconnect();
   server.stop();
   delay(250);
@@ -213,6 +223,7 @@ void initWeb() {
 
   modeAP=!trySavedWifi();
   if (modeAP) {
+    Serial.println("Can't connect, launch own AP");
     scanAPs();
     WiFi.beginAP(DEF_SSID, DEF_PWD);
 
@@ -225,13 +236,15 @@ void initWeb() {
       delay(500);
       status = WiFi.status();
     }
+  } else {
+    Serial.println("Connected to saved wifi");
   }
   Serial.print("Connected, IP address: ");
   Serial.println(WiFi.localIP());
 
   Serial.print("UDP Broadcast Port:");
   Serial.println(BEACON_PORT);
-  sprintf(beaconMessage,"Panel IP Address: %s\0", WiFi.localIP().toString());
+  sprintf(beaconMessage,"Turtle IP Address: %s", WiFi.localIP().toString());
   beaconTarget.fromString(BEACON_TARGET);
   
   server.on("/", handleRoot);

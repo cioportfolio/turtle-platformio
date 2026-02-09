@@ -1,8 +1,8 @@
 #ifndef HPP_MOTOR_
 #define HPP_MOTOR_
 
-#define CLOCK_DIV 250
-#define WRAP 10000
+#define MOTOR_CLOCK_DIV 250
+#define MOTOR_WRAP 10000
 #define MAX_LEVEL 10000
 #define GEAR_RATIO 150
 #define STEPS_PER_REV 28
@@ -36,41 +36,67 @@ struct motor {
     uint channel1,channel2;
     const uint encodeA;
     const uint max_level;
+    char label;
 
-    const PIO pio = DEFAULT_PIO;
-    const uint sm;
+    PIO pio = DEFAULT_PIO;
+    uint sm;
 
-    motor(uint firstPowerPin, uint firstEncoderPin, uint stateMachine = DEFAULT_SM, uint max_level=MAX_LEVEL): driveA(firstPowerPin), encodeA(firstEncoderPin), max_level(max_level), sm(stateMachine) {
+    motor(char label, uint firstPowerPin, uint firstEncoderPin, uint max_level=MAX_LEVEL): label(label), driveA(firstPowerPin), encodeA(firstEncoderPin), max_level(max_level) {
         slice1 = pwm_gpio_to_slice_num(driveA);
         channel1 = pwm_gpio_to_channel(driveA);        
         slice2 = pwm_gpio_to_slice_num(driveA+1);
-        channel2 = pwm_gpio_to_channel(driveA+1);        
+        channel2 = pwm_gpio_to_channel(driveA+1);  
     };
 
     void PWMsInit(uint firstpin) {
         gpio_set_function(firstpin, GPIO_FUNC_PWM);
         gpio_set_function(firstpin+1, GPIO_FUNC_PWM);
         pwm_config config = pwm_get_default_config();
-        pwm_config_set_clkdiv(&config, CLOCK_DIV);
-        pwm_config_set_wrap(&config, WRAP);
+        pwm_config_set_clkdiv(&config, MOTOR_CLOCK_DIV);
+        pwm_config_set_wrap(&config, MOTOR_WRAP);
         pwm_set_gpio_level(firstpin, 0);
         pwm_set_gpio_level(firstpin+1, 0);
         pwm_init(slice1, &config, true);
         pwm_init(slice2, &config, true);
+        Serial.print("Motor ");
+        Serial.print(label);
+        Serial.println(" PMW init");
     }
 
     void EncInit(uint pin) {
-        pio_add_program(pio, &quadrature_encoder_program);
-        quadrature_encoder_program_init(pio, sm, encodeA, 0);
+//        pio_add_program(pio, &quadrature_encoder_program);
+        uint offset=0;
+        if (pio_claim_free_sm_and_add_program_for_gpio_range(&quadrature_encoder_program,&pio, &sm, &offset, encodeA,2,true))
+            quadrature_encoder_program_init(pio, sm, encodeA, 0);
+        else {
+            Serial.print("Unable to claim pio for motor on pin ");
+            Serial.println(driveA);
+        }
+        Serial.print("Motor ");
+        Serial.print(label);
+        Serial.println(" Enc Init");
     }
 
     void init() {
+        Serial.print("Motor ");
+        Serial.print(label);
+        Serial.print(" PMW 1 slice:");
+        Serial.print(slice1);
+        Serial.print(" Channel:");
+        Serial.print(channel1);
+        Serial.print(" PMW 2 slice:");
+        Serial.print(slice2);
+        Serial.print(" Channel:");
+        Serial.println(channel2);
         PWMsInit(driveA);
         EncInit(encodeA);
     }
 
     void start(bool dir, uint8_t pwr) {
         uint16_t level=pwr*max_level/FULL_POWER;
+/*        Serial.print("Motor on pin ");
+        Serial.print(driveA);
+        Serial.println(" start");*/
         pwm_set_chan_level(slice1, channel1, dir?level:0);
         pwm_set_chan_level(slice2, channel2, dir?0:level);
     }
@@ -80,6 +106,9 @@ struct motor {
     }
 
     void stop() {
+        Serial.print("Motor ");
+        Serial.print(label);
+        Serial.println(" stop");
         pwm_set_gpio_level(driveA, 0);
         pwm_set_gpio_level(driveA+1, 0);
     }
@@ -89,6 +118,10 @@ struct motor {
     }
 
     void turnTo(int step) {
+        Serial.print("Motor ");
+        Serial.print(label);
+        Serial.print(" turn to ");
+        Serial.println(step);
         int curr=position();
         int gap=abs(step-curr);
         if (gap<=STEP_THRESHOLD) return;
@@ -124,24 +157,19 @@ struct motor_pair {
     }
 
     void turnBy(int leftSteps, int rightSteps) {
+        Serial.print("Motor pair turn by (");
+        Serial.print(leftSteps);
+        Serial.print(",");
+        Serial.print(rightSteps);
+        Serial.println(")");
+
         int lg = abs(leftSteps);
         int rg = abs(rightSteps);
-        if (lg<STEP_THRESHOLD && rg<STEP_THRESHOLD) {
-            return;
-        }
-        if (lg<STEP_THRESHOLD || rg<STEP_THRESHOLD) {
-            if (lg<STEP_THRESHOLD) {
-                right.turnBy(rightSteps);
-            } else {
-                left.turnBy(leftSteps);
-            }
-            return;
-        }
         int lc = left.position();
         int lt = lc+leftSteps;
         int rc = right.position();
         int rt = rc+rightSteps;
-        while (lg>STEP_THRESHOLD || rg>STEP_THRESHOLD) {
+        while (lg>STEP_THRESHOLD && rg>STEP_THRESHOLD) {
             uint8_t lp=lg<CRAWL_THRESHOLD?CRAWL_POWER:FULL_POWER;
             uint8_t rp=lp;
             if(lg!=rg) {
@@ -157,6 +185,19 @@ struct motor_pair {
             rc=right.position();
             lg=abs(lt-lc);
             rg=abs(rt-rc);
+            Serial.print("\rMotor pair gaps (");
+            Serial.print(lg);
+            Serial.print(",");
+            Serial.print(rg);
+            Serial.print(") ... ");   
+        }
+        if (lg>STEP_THRESHOLD || rg>STEP_THRESHOLD) {
+            if (lg>STEP_THRESHOLD) {
+                left.turnBy(lg);
+            } else {
+                right.turnBy(rg);
+            }
+            return;
         }
         left.stop();
         right.stop();
