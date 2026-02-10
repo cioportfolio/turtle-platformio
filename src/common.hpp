@@ -6,15 +6,22 @@
 #define DEF_SSID "turtle"
 #define DEF_PWD "turtlepassword"
 
-// Motor pins
+// Motor config
+#define SM_L 0
+#define SM_R 1
 #define ENCODER_PIN_LA 10
 #define ENCODER_PIN_RA 12
 #define POWER_PIN_LA 4
 #define POWER_PIN_RA 6
 #define SERVO_PIN 8
 
-#define PEN_UP -45
-#define PEN_DOWN 45
+//Settings
+#define DEFAULT_STEP_THRESHOLD 5
+#define DEFAULT_CRAWL_THRESHOLD 300
+#define DEFAULT_FULL_POWER 255
+#define DEFAULT_CRAWL_POWER 190 // approx 30%
+#define DEFAULT_PEN_UP -45
+#define DEFAULT_PEN_DOWN 45
 
 // SD card holder pins
 #define SPI_TX 19

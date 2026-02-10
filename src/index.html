@@ -23,11 +23,17 @@
         cursor: pointer;
     }
 
-    .slider {
+    .vslider {
         writing-mode: vertical-lr;
-
         vertical-align: middle;
     }
+    .hslider {
+        min-width: 250px;
+    }
+    .setgroup {
+        display: inline-block;
+    }
+
 </style>
 
 </head>
@@ -35,41 +41,73 @@
     <h1>PicoW Turtle</h1>
     <div id="controls">
         <div id="ap"></div>
-    </div>
-    <div>
-        <h2>Tests</h2>
-        <button class="button" onclick="commandAPI('move','1.0')">MOVE 1.0</button>
-        <button class="button" onclick="commandAPI('turn','1.0')">TURN 1.0</button>
-        <button class="button" onclick="penAPI('#penup')">PEN UP</button>
-        <button class="button" onclick="penAPI('#pendown')">PEN DOWN</button>
-    </div>
-    <div>
-        <h2>Settings</h2>
-        Pen Up Position
-        <input type="range" min="-75" max="75" step="5" value="-45" class="slider" id="penup">
-        Pen Down Position
-        <input type="range" min="-75" max="75" step="5" value="45" class="slider" id="pendown">
+        <div>
+            <h2>Tests</h2>
+            <button class="button" onclick="commandAPI('move','1.0')">MOVE 1.0</button>
+            <button class="button" onclick="commandAPI('turn','1.0')">TURN 1.0</button>
+            <button class="button" onclick="commandAPI('pen','up')">PEN UP</button>
+            <button class="button" onclick="commandAPI('pen','down')">PEN DOWN</button>
+        </div>
+        <div>
+            <h2>Settings</h2>
+            <div>
+                <div class="setgroup">
+                <label for="penup">Pen Up Position</label>
+                <input onchange="queueUpdate()" type="range" min="-75" max="75" step="5" value="-45" class="vslider" id="penup">
+                </div>
+                <div class="setgroup">
+                <label for="pendown">Pen Down Position</label>
+                <input onchange="queueUpdate()" type="range" min="-75" max="75" step="5" value="45" class="vslider" id="pendown">
+                </div>
+            </div>
+            <div>
+                <div class="setgroup">
+                <label for="fullpower">Normal Power Level</label>
+                <input onchange="queueUpdate()" type="range" min="0" max="255" step="5" value="255" class="hslider" id="fullpower">
+                </div>
+                <div class="setgroup">
+                <label for="crawlpower">Crawling Power Level</label>
+                <input onchange="queueUpdate()" type="range" min="0" max="255" step="5" value="190" class="hslider" id="crawlpower">
+                </div>
+                <div class="setgroup">
+                <label for="stepthreshold">Minimum Steps</label>
+                <input onchange="queueUpdate()" type="range" min="0" max="20" step="1" value="5" class="hslider" id="stepthreshold">
+                </div>
+                <div class="setgroup">
+                <label for="crawlthreshold">Crawl Steps</label>
+                <input onchange="queueUpdate()" type="range" min="0" max="1050" step="50" value="300" class="hslider" id="crawlthreshold">
+                </div>
+            </div>
+        </div>
     </div>
     <script>
+        var timer=0;
+
+        function setAPI() {
+            let pu = document.querySelector("#penup").value;
+            let pd = document.querySelector("#pendown").value;
+            let fp = document.querySelector("#fullpower").value;
+            let cp = document.querySelector("#crawlpower").value;
+            let st = document.querySelector("#stepthreshold").value;
+            let ct = document.querySelector("#crawlthreshold").value;
+            fetch('/set?penup=' + pu + '&pendown=' + pd + '&fullpower=' + fp + '&crawlpower='+ cp + '&stepthreshold=' + st + '&crawlthreshold=' + ct).then(r => r.text()).then(t => {
+                console.log(t);
+                return;
+            });
+        }
+
+        function queueUpdate() {
+            if (timer) {
+                clearTimeout(timer)
+            }
+            timer=setTimeout(setAPI, 375)
+        }
+
         function commandAPI(cmd, val) {
             fetch('/command?'+cmd+'=' + val).then(r => r.text()).then(t => {
                 console.log(t);
                 return;
             });
-        }
-
-        function setAPI() {
-            let s = document.querySelector("#speed").value;
-            let b = document.querySelector("#brightness").value;
-            fetch('/set?s=' + s + '&b='+b).then(r => r.text()).then(t => {
-                console.log(t);
-                return;
-            });
-        }
-
-        function penAPI(dir) {
-            let val=document.querySelector(dir).value;
-            commandAPI('pen', val);
         }
 
         function connectAPI(SSID) {

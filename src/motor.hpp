@@ -6,11 +6,7 @@
 #define MAX_LEVEL 10000
 #define GEAR_RATIO 150
 #define STEPS_PER_REV 28
-#define STEP_THRESHOLD 10
-#define CRAWL_THRESHOLD (GEAR_RATIO*STEPS_PER_REV/4)
-#define FULL_POWER 255
-#define CRAWL_POWER 85 // approx 30%
-#define DEFAULT_PIO pio0
+#define DEFAULT_PIO pio1
 #define DEFAULT_SM 0
 
 #include <stdio.h>
@@ -37,11 +33,15 @@ struct motor {
     const uint encodeA;
     const uint max_level;
     char label;
+    int stepThreshold=DEFAULT_STEP_THRESHOLD;
+    int crawlThreshold=DEFAULT_CRAWL_THRESHOLD;
+    uint8_t fullPower=DEFAULT_FULL_POWER;
+    uint8_t crawlPower=DEFAULT_CRAWL_POWER;
 
-    PIO pio = DEFAULT_PIO;
+    PIO pio=DEFAULT_PIO;
     uint sm;
 
-    motor(char label, uint firstPowerPin, uint firstEncoderPin, uint max_level=MAX_LEVEL): label(label), driveA(firstPowerPin), encodeA(firstEncoderPin), max_level(max_level) {
+    motor(char label, uint firstPowerPin, uint firstEncoderPin, uint sm, uint max_level=MAX_LEVEL): label(label), driveA(firstPowerPin), encodeA(firstEncoderPin), sm(sm), max_level(max_level) {
         slice1 = pwm_gpio_to_slice_num(driveA);
         channel1 = pwm_gpio_to_channel(driveA);        
         slice2 = pwm_gpio_to_slice_num(driveA+1);
@@ -64,17 +64,15 @@ struct motor {
     }
 
     void EncInit(uint pin) {
-//        pio_add_program(pio, &quadrature_encoder_program);
+        pio_add_program(pio, &quadrature_encoder_program);
         uint offset=0;
-        if (pio_claim_free_sm_and_add_program_for_gpio_range(&quadrature_encoder_program,&pio, &sm, &offset, encodeA,2,true))
-            quadrature_encoder_program_init(pio, sm, encodeA, 0);
-        else {
-            Serial.print("Unable to claim pio for motor on pin ");
-            Serial.println(driveA);
-        }
+        quadrature_encoder_program_init(pio, sm, encodeA, 0);
         Serial.print("Motor ");
         Serial.print(label);
-        Serial.println(" Enc Init");
+        Serial.print("Enc PIO:");
+        Serial.print(pio==pio0?0:1);
+        Serial.print(" state machine:");
+        Serial.println(sm);
     }
 
     void init() {
@@ -93,7 +91,7 @@ struct motor {
     }
 
     void start(bool dir, uint8_t pwr) {
-        uint16_t level=pwr*max_level/FULL_POWER;
+        uint16_t level=pwr*max_level/fullPower;
 /*        Serial.print("Motor on pin ");
         Serial.print(driveA);
         Serial.println(" start");*/
@@ -102,7 +100,7 @@ struct motor {
     }
 
     void start(bool dir) {
-        start(dir, FULL_POWER);
+        start(dir, fullPower);
     }
 
     void stop() {
@@ -124,9 +122,9 @@ struct motor {
         Serial.println(step);
         int curr=position();
         int gap=abs(step-curr);
-        if (gap<=STEP_THRESHOLD) return;
-        while (gap>STEP_THRESHOLD) {
-            start(step>curr, gap<CRAWL_THRESHOLD?CRAWL_POWER:FULL_POWER);
+        if (gap<=stepThreshold) return;
+        while (gap>stepThreshold) {
+            start(step>curr, gap<crawlThreshold?crawlPower:fullPower);
             curr=position();
             gap=abs(step-curr);
         }
@@ -148,6 +146,11 @@ struct motor {
 
 struct motor_pair {
     motor left, right;
+    int stepThreshold=DEFAULT_STEP_THRESHOLD;
+    int crawlThreshold=DEFAULT_CRAWL_THRESHOLD;
+    uint8_t fullPower=DEFAULT_FULL_POWER;
+    uint8_t crawlPower=DEFAULT_CRAWL_POWER;
+
 
     motor_pair(motor left, motor right): left(left), right(right) {};
 
@@ -165,12 +168,18 @@ struct motor_pair {
 
         int lg = abs(leftSteps);
         int rg = abs(rightSteps);
+        Serial.print("Motor pair position\n(");
         int lc = left.position();
+        Serial.print(lc);
+        Serial.println(",");
         int lt = lc+leftSteps;
         int rc = right.position();
+        Serial.print(rc);
+        Serial.println(")");
         int rt = rc+rightSteps;
-        while (lg>STEP_THRESHOLD && rg>STEP_THRESHOLD) {
-            uint8_t lp=lg<CRAWL_THRESHOLD?CRAWL_POWER:FULL_POWER;
+        int loopCount=0;
+        while (lg>stepThreshold && rg>stepThreshold) {
+            uint8_t lp=lg<crawlThreshold?crawlPower:fullPower;
             uint8_t rp=lp;
             if(lg!=rg) {
                 if (lg>rg) {
@@ -185,17 +194,24 @@ struct motor_pair {
             rc=right.position();
             lg=abs(lt-lc);
             rg=abs(rt-rc);
-            Serial.print("\rMotor pair gaps (");
+            Serial.print("\rMotor pair pos (");
+            Serial.print(lc);
+            Serial.print(",");
+            Serial.print(rc);
+            Serial.print(") gaps (");
             Serial.print(lg);
             Serial.print(",");
             Serial.print(rg);
-            Serial.print(") ... ");   
+            Serial.print(") count ");
+            Serial.print(++loopCount);   
         }
-        if (lg>STEP_THRESHOLD || rg>STEP_THRESHOLD) {
-            if (lg>STEP_THRESHOLD) {
-                left.turnBy(lg);
+        if (lg>stepThreshold || rg>stepThreshold) {
+            if (lg>stepThreshold) {
+                right.stop();
+                left.turnTo(lt);
             } else {
-                right.turnBy(rg);
+                left.stop();
+                right.turnTo(rt);
             }
             return;
         }

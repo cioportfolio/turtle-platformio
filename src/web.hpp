@@ -16,6 +16,8 @@ uint numSSIDs=0;
 WiFiUDP udp;
 char beaconMessage[BEACON_BUFFER]={'\0'};
 IPAddress beaconTarget;
+int penup=DEFAULT_PEN_UP;
+int pendown=DEFAULT_PEN_DOWN;
 
 String readLine(File f) {
   String res="";
@@ -130,11 +132,8 @@ void handleRoot()
   loadFromSD("/index.html");
 }
 //------------------------------------------------------------------------------
-void handleSet() {
-  server.send(200, "text/plain","Not implemented");
-}
-//------------------------------------------------------------------------------
 void handleCommand() {
+
     for (int a=0; a<server.args();a++) {
         String command=server.argName(a);
         if (command=="move") {
@@ -142,18 +141,72 @@ void handleCommand() {
             Serial.print("Web Move ");
             Serial.println(rev);
             motors.forwardBy(rev);
+        } else if (command=="draw") {
+            double rev=server.arg(a).toDouble();
+            Serial.print("Web Draw ");
+            Serial.println(rev);
+            serv.moveTo(pendown);
+            motors.forwardBy(rev);
+            serv.moveTo(penup);
         } else if (command=="turn") {
             double rev=server.arg(a).toDouble();
             Serial.print("Web Turn ");
             Serial.println(rev);
             motors.panBy(rev);
         } else if (command=="pen") {
-            int deg = server.arg(a).toInt();
+            int deg = server.arg(a)=="up"?penup:pendown;
             Serial.print("Web Pen ");
             Serial.println(deg);
             serv.moveTo(deg);
         }
     }
+    server.send(200, "text/plain", "OK");
+}
+//------------------------------------------------------------------------------
+void handleSet() {
+    for (int a=0; a<server.args();a++) {
+        String command=server.argName(a);
+        if (command=="penup") {
+            int deg=server.arg(a).toInt();
+            Serial.print("Web setting penup ");
+            Serial.println(deg);
+            penup=deg;
+        } else if (command=="pendown") {
+            int deg=server.arg(a).toInt();
+            Serial.print("Web setting pendown ");
+            Serial.println(deg);
+            pendown=deg;
+        } else if (command=="fullpower") {
+            int pwr=server.arg(a).toInt();
+            Serial.print("Web setting fullpower ");
+            Serial.println(pwr);
+            motors.fullPower=pwr;
+            motors.left.fullPower=pwr;
+            motors.right.fullPower=pwr;
+        } else if (command=="crawlpower") {
+            int pwr=server.arg(a).toInt();
+            Serial.print("Web setting crawlpower ");
+            Serial.println(pwr);
+            motors.crawlPower=pwr;
+            motors.left.crawlPower=pwr;
+            motors.right.crawlPower=pwr;
+        } else if (command=="stepthreshold") {
+            int stp=server.arg(a).toInt();
+            Serial.print("Web setting stepthreshold ");
+            Serial.println(stp);
+            motors.stepThreshold=stp;
+            motors.left.stepThreshold=stp;
+            motors.right.stepThreshold=stp;
+        } else if (command=="crawlthreshold") {
+            int stp=server.arg(a).toInt();
+            Serial.print("Web setting crawlthreshold ");
+            Serial.println(stp);
+            motors.crawlThreshold=stp;
+            motors.left.crawlThreshold=stp;
+            motors.right.crawlThreshold=stp;
+        }
+    }
+    server.send(200, "text/plain", "OK");
 }
 //------------------------------------------------------------------------------
 void initWeb();
@@ -258,7 +311,6 @@ void initWeb() {
   server.onNotFound(handleNotFound);
 
   server.begin();
-
 }
 //------------------------------------------------------------------------------
 void processWeb() {

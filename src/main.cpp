@@ -14,16 +14,15 @@ void initSerial() {
 
 void setup() {
   initSerial();
-  Serial.println("Serial done. Pause...");
-  delay(5000);
-  Serial.println("Start motors...");
-  initControl();
-  Serial.println("Pause...");
-  delay(5000);
+  delay(1000);
   Serial.println("Start SD...");
   initSD();
-  Serial.println("Pause...");
-  delay(5000);
+//  Serial.println("Pause...");
+//  delay(5000);
+  Serial.println("Start motors...");
+  initControl();
+//  Serial.println("Pause...");
+//  delay(5000);
   Serial.println("Start web.");
   initWeb();
 }

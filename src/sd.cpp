@@ -9,6 +9,9 @@ void initSD() {
   SPI.setCS(SD_CS_PIN);
   SPI.begin(SD_CS_PIN);
 
+  SDFSConfig config = SDFSConfig();
+  config.setCSPin(SD_CS_PIN);
+  SDFS.setConfig(config);
   if (!SDFS.begin()) {
     Serial.print(F(
         "\nSD initialization failed.\n"
