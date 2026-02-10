@@ -6,7 +6,7 @@
 #define MAX_LEVEL 10000
 #define GEAR_RATIO 150
 #define STEPS_PER_REV 28
-#define DEFAULT_PIO pio1
+#define DEFAULT_PIO pio0
 #define DEFAULT_SM 0
 
 #include <stdio.h>
