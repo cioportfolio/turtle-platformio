@@ -33,6 +33,7 @@ struct motor {
     const uint encodeA;
     const uint max_level;
     char label;
+    int lastPos=0;
     int stepThreshold=DEFAULT_STEP_THRESHOLD;
     int crawlThreshold=DEFAULT_CRAWL_THRESHOLD;
     uint8_t fullPower=DEFAULT_FULL_POWER;
@@ -75,6 +76,10 @@ struct motor {
         Serial.println(sm);
     }
 
+    int position() {
+        return quadrature_encoder_get_count(pio, sm);
+    }
+
     void init() {
         Serial.print("Motor ");
         Serial.print(label);
@@ -88,6 +93,7 @@ struct motor {
         Serial.println(channel2);
         PWMsInit(driveA);
         EncInit(encodeA);
+        lastPos = position();
     }
 
     void start(bool dir, uint8_t pwr) {
@@ -111,9 +117,6 @@ struct motor {
         pwm_set_gpio_level(driveA+1, 0);
     }
 
-    int position() {
-        return quadrature_encoder_get_count(pio, sm);
-    }
 
     void turnTo(int step) {
         Serial.print("Motor ");
@@ -122,13 +125,16 @@ struct motor {
         Serial.println(step);
         int curr=position();
         int gap=abs(step-curr);
+        int dist=abs(curr-lastPos);
         if (gap<=stepThreshold) return;
         while (gap>stepThreshold) {
-            start(step>curr, gap<crawlThreshold?crawlPower:fullPower);
+            start(step>curr, gap<crawlThreshold||dist<crawlThreshold?crawlPower:fullPower);
             curr=position();
             gap=abs(step-curr);
+            dist=abs(curr-lastPos);
         }
         stop();
+        lastPos = step;
     }
 
     void turnTo(double rev) {
@@ -136,7 +142,7 @@ struct motor {
     }
 
     void turnBy(int step) {
-        turnTo(position()+step);
+        turnTo(lastPos+step);
     }
 
     void turnBy(double rev) {
@@ -166,20 +172,22 @@ struct motor_pair {
         Serial.print(rightSteps);
         Serial.println(")");
 
-        int lg = abs(leftSteps);
-        int rg = abs(rightSteps);
-        Serial.print("Motor pair position\n(");
+        int lt = left.lastPos+leftSteps;
+        int rt = right.lastPos+rightSteps;
         int lc = left.position();
+        int rc = right.position();
+        int lg=abs(lt-lc);
+        int rg=abs(rt-rc);
+        int ld=abs(lc-left.lastPos);
+        int rd=abs(rc-right.lastPos);
+/*        Serial.print("Motor pair position\n(");
         Serial.print(lc);
         Serial.println(",");
-        int lt = lc+leftSteps;
-        int rc = right.position();
         Serial.print(rc);
         Serial.println(")");
-        int rt = rc+rightSteps;
-        int loopCount=0;
-        while (lg>stepThreshold && rg>stepThreshold) {
-            uint8_t lp=lg<crawlThreshold?crawlPower:fullPower;
+        int loopCount=0;*/
+        while (lg>stepThreshold || rg>stepThreshold) {
+            uint8_t lp=lg<crawlThreshold||ld<crawlThreshold?crawlPower:fullPower;
             uint8_t rp=lp;
             if(lg!=rg) {
                 if (lg>rg) {
@@ -194,7 +202,9 @@ struct motor_pair {
             rc=right.position();
             lg=abs(lt-lc);
             rg=abs(rt-rc);
-            Serial.print("\rMotor pair pos (");
+            ld=abs(lc-left.lastPos);
+            rd=abs(rc-right.lastPos);
+/*            Serial.print("\rMotor pair pos (");
             Serial.print(lc);
             Serial.print(",");
             Serial.print(rc);
@@ -203,9 +213,9 @@ struct motor_pair {
             Serial.print(",");
             Serial.print(rg);
             Serial.print(") count ");
-            Serial.print(++loopCount);   
+            Serial.print(++loopCount);   */
         }
-        if (lg>stepThreshold || rg>stepThreshold) {
+/*        if (lg>stepThreshold || rg>stepThreshold) {
             if (lg>stepThreshold) {
                 right.stop();
                 left.turnTo(lt);
@@ -213,10 +223,25 @@ struct motor_pair {
                 left.stop();
                 right.turnTo(rt);
             }
-            return;
-        }
+        }*/
         left.stop();
         right.stop();
+        Serial.println("\nMotor pair turn done");
+        lc=left.position();
+        rc=right.position();
+        lg=abs(lt-lc);
+        rg=abs(rt-rc);
+        Serial.print("\rMotor pair pos (");
+        Serial.print(lc);
+        Serial.print(",");
+        Serial.print(rc);
+        Serial.print(") gaps (");
+        Serial.print(lg);
+        Serial.print(",");
+        Serial.print(rg);
+        Serial.print(") count ");
+        left.lastPos=lt;
+        right.lastPos=rt;
     }
 
     void turnBy(double leftrev, double rightrev) {
