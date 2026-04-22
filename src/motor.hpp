@@ -9,6 +9,11 @@
 #define DEFAULT_PIO pio0
 #define DEFAULT_SM 0
 
+#define MIN_SPEED 800
+#define MAX_SPEED 3200
+#define SPEED_STEP 200
+#define SPEED_TABLE_SIZE ((MAX_SPEED-MIN_SPEED)/SPEED_STEP+1)
+
 #include <stdio.h>
 #include "pico/stdlib.h"
 #include "hardware/pio.h"
@@ -38,6 +43,8 @@ struct motor {
     int crawlThreshold=DEFAULT_CRAWL_THRESHOLD;
     uint8_t fullPower=DEFAULT_FULL_POWER;
     uint8_t crawlPower=DEFAULT_CRAWL_POWER;
+    uint8_t speedTable[SPEED_TABLE_SIZE];
+    int maxSpeed=MAX_SPEED;
 
     PIO pio=DEFAULT_PIO;
     uint sm;
@@ -46,7 +53,10 @@ struct motor {
         slice1 = pwm_gpio_to_slice_num(driveA);
         channel1 = pwm_gpio_to_channel(driveA);        
         slice2 = pwm_gpio_to_slice_num(driveA+1);
-        channel2 = pwm_gpio_to_channel(driveA+1);  
+        channel2 = pwm_gpio_to_channel(driveA+1);
+        for (int i=0; i<SPEED_TABLE_SIZE; i++) {
+            speedTable[i]=crawlPower+(i*(fullPower-crawlPower))/SPEED_TABLE_SIZE;
+        }
     };
 
     void PWMsInit(uint firstpin) {
@@ -110,9 +120,9 @@ struct motor {
     }
 
     void stop() {
-        Serial.print("Motor ");
+/*        Serial.print("Motor ");
         Serial.print(label);
-        Serial.println(" stop");
+        Serial.println(" stop");*/
         pwm_set_gpio_level(driveA, 0);
         pwm_set_gpio_level(driveA+1, 0);
     }
@@ -264,5 +274,84 @@ struct motor_pair {
         panBy(revToStep(rev));
     }
 
+    void profile() {
+        int leftPowerTable[26];
+        int rightPowerTable[26];
+        for (int pwr=0; pwr<DEFAULT_FULL_POWER; pwr+=10) {
+            int lp = left.position();
+            int rp = right.position();
+            left.start(true, pwr);
+            right.start(true, pwr);
+            delay(200);
+            left.stop();
+            right.stop();
+            int lp2 = left.position();
+            int rp2 = right.position();
+            leftPowerTable[pwr/10]=abs(lp2-lp)*5;
+            rightPowerTable[pwr/10]=abs(rp2-rp)*5;
+        }
+        delay(1000);
+        for (int pwr=0; pwr<DEFAULT_FULL_POWER; pwr+=10) {
+            int lp = left.position();
+            int rp = right.position();
+            left.start(false, pwr);
+            right.start(false, pwr);
+            delay(200);
+            left.stop();
+            right.stop();
+            int lp2 = left.position();
+            int rp2 = right.position();
+            leftPowerTable[pwr/10]=(leftPowerTable[pwr/10]+abs(lp2-lp)*5)/2;
+            rightPowerTable[pwr/10]=(rightPowerTable[pwr/10]+abs(rp2-rp)*5)/2;
+        }
+        Serial.println("Motor power profile:");
+        for (int p=0; p<26; p++) {
+            Serial.print("Power ");
+            Serial.print(p*10);
+            Serial.print(" left speed ");
+            Serial.print(leftPowerTable[p]);
+            Serial.print(" right speed ");
+            Serial.println(rightPowerTable[p]);
+        }
+        for (int s=0; s<SPEED_TABLE_SIZE; s++){
+            int spd = MIN_SPEED+s*SPEED_STEP;
+            int i=1;
+            for (; i<26 && leftPowerTable[i]<spd; i++) {}
+            uint8_t lowp = (i-1)*10;
+            uint8_t highp = i*10;
+            int lowspd = leftPowerTable[i-1];
+            int highspd = leftPowerTable[i];
+            if (i==26) {
+                left.speedTable[s]=0;
+                left.maxSpeed=min(left.maxSpeed, spd);
+            } else {
+                left.speedTable[s] = lowp+(highp-lowp)*(spd-lowspd)/(highspd-lowspd); 
+            }
+            for (i=1; i<26 && rightPowerTable[i]<spd; i++) {}
+            if (i==26) {
+                right.speedTable[s]=0;
+                right.maxSpeed=min(right.maxSpeed, spd);
+            } else {
+                lowp = (i-1)*10;
+                highp = i*10;
+                lowspd = rightPowerTable[i-1];
+                highspd = rightPowerTable[i];
+                right.speedTable[s] = lowp+(highp-lowp)*(spd-lowspd)/(highspd-lowspd); 
+            }
+        }
+        Serial.println("Motor speed profile:");
+        for (int s=0; s<SPEED_TABLE_SIZE; s++) {
+            Serial.print("Speed ");
+            Serial.print(MIN_SPEED+s*SPEED_STEP);
+            Serial.print(" left power ");
+            Serial.print(left.speedTable[s]);
+            Serial.print(" right power ");
+            Serial.println(right.speedTable[s]);
+        }
+        Serial.print("Motor max speed: left ");
+        Serial.print(left.maxSpeed);
+        Serial.print(" right ");
+        Serial.println(right.maxSpeed); 
+    }
 };
 #endif

@@ -21,6 +21,7 @@ void initControl(void) {
 //    delay(5000);
     right_motor.init();
     Serial.println("Right motor inited");
+    motors.profile();
 }
 
 #endif
