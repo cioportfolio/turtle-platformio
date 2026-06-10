@@ -14,6 +14,7 @@
 #define SPEED_STEP 200
 #define SPEED_TABLE_SIZE ((MAX_SPEED-MIN_SPEED)/SPEED_STEP+1)
 
+#include "common.hpp"
 #include <stdio.h>
 #include "pico/stdlib.h"
 #include "hardware/pio.h"
@@ -167,7 +168,6 @@ struct motor_pair {
     uint8_t fullPower=DEFAULT_FULL_POWER;
     uint8_t crawlPower=DEFAULT_CRAWL_POWER;
 
-
     motor_pair(motor left, motor right): left(left), right(right) {};
 
     void init() {
@@ -182,58 +182,35 @@ struct motor_pair {
         Serial.print(rightSteps);
         Serial.println(")");
 
-        int lt = left.lastPos+leftSteps;
-        int rt = right.lastPos+rightSteps;
-        int lc = left.position();
-        int rc = right.position();
-        int lg=abs(lt-lc);
-        int rg=abs(rt-rc);
-        int ld=abs(lc-left.lastPos);
-        int rd=abs(rc-right.lastPos);
-/*        Serial.print("Motor pair position\n(");
-        Serial.print(lc);
-        Serial.println(",");
-        Serial.print(rc);
-        Serial.println(")");
-        int loopCount=0;*/
+        int ls = left.lastPos;
+        int rs = right.lastPos;
+        int le = ls+leftSteps;
+        int re = rs+rightSteps;
+        int lp = left.position();
+        int rp = right.position();
+        int ld=abs(lp-ls);
+        int rd=abs(rp-rs);
+        int lg=abs(le-lp);
+        int rg=abs(re-rp);
+
         while (lg>stepThreshold || rg>stepThreshold) {
-            uint8_t lp=lg<crawlThreshold||ld<crawlThreshold?crawlPower:fullPower;
-            uint8_t rp=lp;
-            if(lg!=rg) {
-                if (lg>rg) {
-                    rp=rp*rg/lg;
-                } else {
-                    lp=lp*lg/rg;
-                }
-            }
-            left.start(lt>lc,lp);
-            right.start(rt>rc,rp);
-            lc=left.position();
-            rc=right.position();
-            lg=abs(lt-lc);
-            rg=abs(rt-rc);
-            ld=abs(lc-left.lastPos);
-            rd=abs(rc-right.lastPos);
-/*            Serial.print("\rMotor pair pos (");
-            Serial.print(lc);
-            Serial.print(",");
-            Serial.print(rc);
-            Serial.print(") gaps (");
-            Serial.print(lg);
-            Serial.print(",");
-            Serial.print(rg);
-            Serial.print(") count ");
-            Serial.print(++loopCount);   */
-        }
-/*        if (lg>stepThreshold || rg>stepThreshold) {
-            if (lg>stepThreshold) {
-                right.stop();
-                left.turnTo(lt);
+            int mv = min(left.maxSpeed, right.maxSpeed);
+            int lv = min(mv, min(ld+MIN_SPEED, lg+MIN_SPEED));
+            int rv = min(mv, min(rd+MIN_SPEED, rg+MIN_SPEED));
+            int lgain = ld-rd;
+            if (lgain > 0) {
+                
             } else {
-                left.stop();
-                right.turnTo(rt);
+
             }
-        }*/
+            delay(50);
+            lp = left.position();
+            rp = right.position();
+            ld=abs(lp-ls);
+            rd=abs(rp-rs);
+            lg=abs(le-lp);
+            rg=abs(re-rp);
+        }
         left.stop();
         right.stop();
         Serial.println("\nMotor pair turn done");
