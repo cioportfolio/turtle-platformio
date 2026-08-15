@@ -195,15 +195,13 @@ struct motor_pair {
 
         while (lg>stepThreshold || rg>stepThreshold) {
             int mv = min(left.maxSpeed, right.maxSpeed);
-            int lv = min(mv, min(ld+MIN_SPEED, lg+MIN_SPEED));
-            int rv = min(mv, min(rd+MIN_SPEED, rg+MIN_SPEED));
-            int lgain = ld-rd;
-            if (lgain > 0) {
-                
-            } else {
-
-            }
-            delay(50);
+            int lv = min(mv, lg+MIN_SPEED);
+            int rv = min(mv, rg+MIN_SPEED);
+            int lpw = (lv-MIN_SPEED)/SPEED_STEP;
+            int rpw = (rv-MIN_SPEED)/SPEED_STEP;
+            left.start(le>lp, left.speedTable[lpw]);
+            right.start(re>rp, right.speedTable[rpw]);
+            delay(100);
             lp = left.position();
             rp = right.position();
             ld=abs(lp-ls);
@@ -214,21 +212,21 @@ struct motor_pair {
         left.stop();
         right.stop();
         Serial.println("\nMotor pair turn done");
-        lc=left.position();
-        rc=right.position();
-        lg=abs(lt-lc);
-        rg=abs(rt-rc);
+        lp=left.position();
+        rp=right.position();
+        lg=abs(le-lp);
+        rg=abs(re-rp);
         Serial.print("\rMotor pair pos (");
-        Serial.print(lc);
+        Serial.print(lp);
         Serial.print(",");
-        Serial.print(rc);
+        Serial.print(rp);
         Serial.print(") gaps (");
         Serial.print(lg);
         Serial.print(",");
         Serial.print(rg);
-        Serial.print(") count ");
-        left.lastPos=lt;
-        right.lastPos=rt;
+        Serial.println(")");
+        left.lastPos=le;
+        right.lastPos=re;
     }
 
     void turnBy(double leftrev, double rightrev) {
@@ -251,36 +249,37 @@ struct motor_pair {
         panBy(revToStep(rev));
     }
 
+    void test(int &ls, int &rs, bool dir, int pwr) {
+        left.start(dir, pwr);
+        right.start(dir, pwr);
+        delay(200);
+        int lp = left.position();
+        int rp = right.position();
+        delay(200);
+        int lp2 = left.position();
+        int rp2 = right.position();
+        left.stop();
+        right.stop();
+        ls = abs(lp2-lp)*5;
+        rs = abs(rp2-rp)*5;    
+    }
+
     void profile() {
         int leftPowerTable[26];
         int rightPowerTable[26];
+        int ls, rs;
         for (int pwr=0; pwr<DEFAULT_FULL_POWER; pwr+=10) {
-            int lp = left.position();
-            int rp = right.position();
-            left.start(true, pwr);
-            right.start(true, pwr);
-            delay(200);
-            left.stop();
-            right.stop();
-            int lp2 = left.position();
-            int rp2 = right.position();
-            leftPowerTable[pwr/10]=abs(lp2-lp)*5;
-            rightPowerTable[pwr/10]=abs(rp2-rp)*5;
+            test(ls, rs, true, pwr);
+            leftPowerTable[pwr/10]=abs(ls);
+            rightPowerTable[pwr/10]=abs(rs);
         }
-        delay(1000);
         for (int pwr=0; pwr<DEFAULT_FULL_POWER; pwr+=10) {
-            int lp = left.position();
-            int rp = right.position();
-            left.start(false, pwr);
-            right.start(false, pwr);
-            delay(200);
-            left.stop();
-            right.stop();
-            int lp2 = left.position();
-            int rp2 = right.position();
-            leftPowerTable[pwr/10]=(leftPowerTable[pwr/10]+abs(lp2-lp)*5)/2;
-            rightPowerTable[pwr/10]=(rightPowerTable[pwr/10]+abs(rp2-rp)*5)/2;
+            test(ls, rs, false, pwr);
+            leftPowerTable[pwr/10]=(leftPowerTable[pwr/10]+ls)/2;
+            rightPowerTable[pwr/10]=(rightPowerTable[pwr/10]+rs)/2;
         }
+        left.lastPos=left.position();
+        right.lastPos=right.position();
         Serial.println("Motor power profile:");
         for (int p=0; p<26; p++) {
             Serial.print("Power ");
@@ -300,14 +299,14 @@ struct motor_pair {
             int highspd = leftPowerTable[i];
             if (i==26) {
                 left.speedTable[s]=0;
-                left.maxSpeed=min(left.maxSpeed, spd);
+                left.maxSpeed=min(left.maxSpeed, spd-SPEED_STEP);
             } else {
                 left.speedTable[s] = lowp+(highp-lowp)*(spd-lowspd)/(highspd-lowspd); 
             }
             for (i=1; i<26 && rightPowerTable[i]<spd; i++) {}
             if (i==26) {
                 right.speedTable[s]=0;
-                right.maxSpeed=min(right.maxSpeed, spd);
+                right.maxSpeed=min(right.maxSpeed, spd-SPEED_STEP);
             } else {
                 lowp = (i-1)*10;
                 highp = i*10;
